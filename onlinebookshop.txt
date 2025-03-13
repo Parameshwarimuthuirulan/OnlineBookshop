@@ -1,0 +1,98 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import mysql.connector
+def db_connect():
+    try:
+        return mysql.connector.connect(host="localhost", user="root", password="root", database="paramadb")
+    except mysql.connector.Error as error:
+        messagebox.showerror("Database Error", f"Failed to connect: {error}")
+        return None
+def load_books():
+    conn = db_connect()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT title, price FROM book")
+        book_list = cursor.fetchall()
+        conn.close()
+        return book_list
+    return []
+def insert_book():
+    title = title_input.get().strip()
+    price = price_input.get().strip()
+    if title.lower() == "exit":
+        root.quit()
+    elif title and price:
+        try:
+            price = float(price)
+            if price <= 0:
+                messagebox.showerror("Input Error", "Price must be greater than zero.")
+                return
+        except ValueError:
+            messagebox.showerror("Input Error", "Enter a valid numeric price.")
+            return
+        conn = db_connect()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO book (title, price) VALUES (%s, %s)", (title, price))
+            conn.commit()
+            conn.close()
+            book_table.insert("", tk.END, values=(title, f"${price:.2f}"))
+            title_input.delete(0, tk.END)
+            price_input.delete(0, tk.END)
+    else:
+        messagebox.showerror("Input Error", "Both title and price are required.")
+def add_to_cart():
+    selected_items = book_table.selection()
+    for item in selected_items:
+        cart_table.insert("", tk.END, values=book_table.item(item, "values"))
+    update_total()
+def delete_from_cart():
+    for item in cart_table.selection():
+        cart_table.delete(item)
+    update_total()
+def update_total():
+    total = sum(float(cart_table.item(item, "values")[1][1:]) for item in cart_table.get_children())
+    total_display.config(text=f"Total: ${total:.2f}")
+def complete_purchase():
+    if cart_table.get_children():
+        messagebox.showinfo("Purchase Confirmed", "Thank you for your purchase!")
+        cart_table.delete(*cart_table.get_children())
+        total_display.config(text="Total: $0.00")
+root = tk.Tk()
+root.configure(bg="lightblue")
+root.title("Book Store")
+root.geometry("500x400")
+tk.Label(root, text="Available Books", font=("Arial", 12, "bold"), bg="lightblue").pack()
+book_table = ttk.Treeview(root, columns=("Title", "Price"), show="headings")
+book_table.heading("Title", text="Book Title")
+book_table.heading("Price", text="Price ($)")
+book_table.pack()
+def add_sample_books():
+    book_samples = [
+        ("The Alchemist", 11.99),
+        ("Moby Dick", 9.49),
+        ("Little Women", 13.29),
+        ("Frankenstein", 7.99),
+        ("Dracula", 8.99)
+    ]
+    for book in book_samples:
+        book_table.insert("", tk.END, values=(book[0], f"${book[1]:.2f}"))
+add_sample_books()
+tk.Button(root, text="Add to Cart", command=add_to_cart).pack()
+tk.Label(root, text="Add a New Book", font=("Arial", 10, "bold"), bg="lightblue").pack()
+title_input = tk.Entry(root)
+title_input.pack()
+price_input = tk.Entry(root)
+price_input.pack()
+tk.Button(root, text="Add Book", command=insert_book).pack()
+tk.Label(root, text="Shopping Cart", font=("Arial", 12, "bold"), bg="lightblue").pack()
+
+cart_table = ttk.Treeview(root, columns=("Title", "Price"), show="headings")
+cart_table.heading("Title", text="Book Title")
+cart_table.heading("Price", text="Price ($)")
+cart_table.pack()
+tk.Button(root, text="Remove Item", command=delete_from_cart).pack()
+total_display = tk.Label(root, text="Total: $0.00", font=("Arial", 12, "bold"), bg="lightblue")
+total_display.pack()
+tk.Button(root, text="Checkout", command=complete_purchase).pack()
+root.mainloop()
